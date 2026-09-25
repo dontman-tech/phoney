@@ -1,0 +1,12 @@
+[Unit]
+Description=Phoney — Android companion via KDE Connect protocol
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+ExecStart=%h/.local/bin/phoney daemon
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target
