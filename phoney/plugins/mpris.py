@@ -1,10 +1,8 @@
 """MprisControl plugin — remote media control in both directions."""
 from __future__ import annotations
 
-import json
 import logging
 import subprocess
-import threading
 
 from ..packets import packet
 

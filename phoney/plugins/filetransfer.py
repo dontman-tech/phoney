@@ -24,7 +24,6 @@ class FileTransfer:
     CAPABILITY = "kdeconnect.transfer"
 
     def __init__(self, download_dir, upload_dir=None):
-        from pathlib import Path
         self.download_dir = download_dir
         self.download_dir.mkdir(parents=True, exist_ok=True)
 

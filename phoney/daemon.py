@@ -7,13 +7,13 @@ import threading
 import time
 from pathlib import Path
 
-from .packets import Identity, packet
+from .packets import Identity
 from .transport import Device, Transport
 from .plugins.clipboard import Clipboard, make_x11_clipboard
 from .plugins.filetransfer import FileTransfer
 from .plugins.notifications import Notifications
 from .plugins.battery import Battery, BatterySource
-from .plugins.mousepad import Mousepad, MousepadSource
+from .plugins.mousepad import Mousepad  # noqa: F401 — capability constant
 from .plugins.mpris import MprisControl, MprisSource
 from .plugins.findmyphone import FindMyPhone, FindMyPhoneSource
 from .plugins.sms import Sms, SmsSource

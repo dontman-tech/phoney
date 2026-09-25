@@ -51,6 +51,7 @@ class BatterySource:
     @staticmethod
     def read() -> dict | None:
         import glob
+        from pathlib import Path
         for base in ("/sys/class/power_supply/",):
             for d in sorted(glob.glob(base + "*")):
                 try:

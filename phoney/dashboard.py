@@ -6,7 +6,6 @@ find-my-phone, clipboard push, and file send.
 """
 from __future__ import annotations
 
-import html
 import json
 import logging
 import threading
