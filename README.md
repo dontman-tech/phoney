@@ -78,3 +78,40 @@ cli.py             command-line interface
 ```
 
 License: MIT.
+
+## Real-device pairing guide
+
+Phoney speaks the stock KDE Connect protocol, so the phone side is the
+standard app — no custom APK required.
+
+1. **Install KDE Connect** on your Android phone
+   ([Play Store](https://play.google.com/store/apps/details?id=org.kde.kdeconnect_tp) /
+   [F-Droid](https://f-droid.org/packages/org.kde.kdeconnect_tp/)).
+2. **Same network**: both devices must be on the same Wi-Fi (or the phone on
+   USB tethering / hotspot from the laptop). Corporate/guest Wi-Fi often blocks
+   UDP broadcast — a phone hotspot is the reliable fallback.
+3. **Firewall**: open UDP and TCP port **1716** on the desktop.
+   `sudo ufw allow 1716` (both proto tcp and udp).
+4. **Discover**: `phoney list` — the phone appears within a few seconds of
+   opening the KDE Connect app.
+5. **Pair**: `phoney pair <name>`, then accept the prompt on the phone
+   (Phoney auto-accepts incoming requests and records the peer certificate).
+6. **Verify**: `phoney list` shows *(paired)*; `phoney battery <name>` should
+   return a level within a few seconds.
+
+### Feature permissions on the phone
+KDE Connect gates each plugin behind an Android permission. After pairing,
+enable in the KDE Connect app → connected computer → plugin settings:
+notifications, clipboard, remote input (mousepad), media control, SMS,
+find-my-phone. Screen mirroring additionally needs `adb` authorized
+(accept the USB debugging prompt, or pair once over USB then
+`adb tcpip 5555` for wireless).
+
+### Troubleshooting
+- *Not discovered*: check both on same subnet, port 1716 open, KDE Connect app
+  foregrounded once (Android kills idle UDP listeners).
+- *Paired but plugins silent*: capabilities are exchanged at identity time —
+  unpair, toggle the plugin in the KDE Connect app, re-pair.
+- *Transfer stalls*: KDE Connect v7+ uses a separate plain-TCP data port; make
+  sure only port 1716 being open isn't enough on strict firewalls — allow the
+  ephemeral range on trusted networks or use the same hotspot.
