@@ -12,6 +12,13 @@ from .transport import Device, Transport
 from .plugins.clipboard import Clipboard, make_x11_clipboard
 from .plugins.filetransfer import FileTransfer
 from .plugins.notifications import Notifications
+from .plugins.battery import Battery, BatterySource
+from .plugins.mousepad import Mousepad, MousepadSource
+from .plugins.mpris import MprisControl, MprisSource
+from .plugins.findmyphone import FindMyPhone, FindMyPhoneSource
+from .plugins.sms import Sms, SmsSource
+from .plugins.calls import Calls, CallsSource
+from .plugins.screencast import ScreenMirror
 
 log = logging.getLogger(__name__)
 
@@ -30,12 +37,26 @@ class Daemon:
             device_id=f"phoney-{self.device_name}".replace(" ", "")[:64],
             device_type="desktop",
             incoming=[Notifications.CAPABILITY, FileTransfer.CAPABILITY,
-                      Clipboard.CAPABILITY],
-            outgoing=[FileTransfer.CAPABILITY, Clipboard.CAPABILITY],
+                      Clipboard.CAPABILITY, Mousepad.CAPABILITY,
+                      MprisControl.CAPABILITY, FindMyPhone.CAPABILITY,
+                      Sms.INCOMING_CAP, Sms.REQUEST_CAP, Calls.CAPABILITY,
+                      ScreenMirror.CAPABILITY],
+            outgoing=[FileTransfer.CAPABILITY, Clipboard.CAPABILITY,
+                      MprisSource.CAPABILITY, SmsSource.REQUEST_CAP,
+                      CallsSource.CAPABILITY],
         )
         self.notifications = Notifications()
         self.filetransfer = FileTransfer(self.data_dir / "Downloads")
         self.clipboard: Clipboard = make_x11_clipboard()
+        self.battery = Battery()
+        self.battery_source = BatterySource()
+        self.mousepad = Mousepad()
+        self.mpris = MprisControl()
+        self.findmyphone = FindMyPhone()
+        self.findmyphone_source = FindMyPhoneSource()
+        self.sms = Sms()
+        self.calls = Calls()
+        self.screencast = ScreenMirror()
         self.transport = Transport(
             self.identity, self.data_dir,
             on_device=self._on_device,
@@ -49,12 +70,27 @@ class Daemon:
 
     def _on_packet(self, dev: Device, pkt: dict) -> None:
         t = pkt.get("type", "")
-        if t == self.notifications.CAPABILITY:
+        if t in (self.notifications.CAPABILITY,):
             self.notifications.handle(dev, pkt)
         elif t == self.filetransfer.CAPABILITY:
             self.filetransfer.handle(dev, pkt)
         elif t == self.clipboard.CAPABILITY:
             self.clipboard.handle(dev, pkt)
+        elif t == self.battery.CAPABILITY:
+            self.battery.handle(dev, pkt)
+            self.battery_source.handle(dev, pkt)
+        elif t == self.mousepad.CAPABILITY:
+            self.mousepad.handle(dev, pkt)
+        elif t == self.mpris.CAPABILITY:
+            self.mpris.handle(dev, pkt)
+        elif t == self.findmyphone.CAPABILITY:
+            self.findmyphone_source.handle(dev, pkt)
+        elif t in (self.sms.INCOMING_CAP, self.sms.REQUEST_CAP):
+            self.sms.handle(dev, pkt)
+        elif t == self.calls.CAPABILITY:
+            self.calls.handle(dev, pkt)
+        elif t == self.screencast.CAPABILITY:
+            self.screencast.handle(dev, pkt)
         else:
             log.debug("Unhandled packet %s from %s", t, dev.name)
 
@@ -112,6 +148,23 @@ class Daemon:
                    else self.paired_devices())
         for dev in targets:
             self.clipboard.push(dev)
+
+    def battery_of(self, name_or_id: str) -> dict | None:
+        dev = self._find(name_or_id)
+        self.battery.refresh(dev)
+        return self.battery.get(dev.id)
+
+    def ring(self, name_or_id: str) -> None:
+        self.findmyphone.ring(self._find(name_or_id))
+
+    def media(self, name_or_id: str, cmd: str) -> None:
+        MprisSource.command(self._find(name_or_id), cmd)
+
+    def send_sms(self, name_or_id: str, number: str, text: str) -> None:
+        SmsSource.send(self._find(name_or_id), number, text)
+
+    def mute_call(self, name_or_id: str) -> None:
+        CallsSource.mute(self._find(name_or_id))
 
     def _find(self, name_or_id: str) -> Device:
         for d in self.devices():

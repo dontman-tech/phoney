@@ -45,7 +45,7 @@ class FileTransfer:
             f = open(self._dest(desc), "wb")
             with sock, f:
                 while True:
-                    chunk = s.recv(65536)
+                    chunk = sock.recv(65536)
                     if not chunk:
                         break
                     f.write(chunk)

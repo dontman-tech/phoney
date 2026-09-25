@@ -1,39 +1,58 @@
 #!/usr/bin/env python3
 """phoney — CLI for the Phoney daemon.
 
-    phoney daemon                run the background daemon
+    phoney daemon                run the background daemon (dashboard on :3000)
     phoney list                  list discovered devices
     phoney pair <device>         send/accept a pairing request
     phoney unpair <device>       remove pairing
     phoney send <device> <file>  send a file to the phone
     phoney clip [device]         push clipboard to phone(s)
+    phoney battery <device>      report phone battery level
+    phoney ring <device>         ring the phone (find my phone)
+    phoney media <device> [cmd]  control the desktop player / phone media
+    phoney sms <device> <num> <text>   send an SMS through the phone
+    phoney mute <device>         mute an incoming call
+    phoney mirror [device]       screen-mirror the phone (needs scrcpy)
 """
 from __future__ import annotations
 
 import argparse
 import sys
+import time
 
 from phoney.daemon import Daemon
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(prog="phoney", description=__doc__)
+    ap = argparse.ArgumentParser(prog="phoney", description=__doc__,
+                                 formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd", required=True)
-    sub.add_parser("daemon")
+    sub.add_parser("daemon", help="run the daemon + web dashboard")
     sub.add_parser("list")
     p = sub.add_parser("pair"); p.add_argument("device")
     p = sub.add_parser("unpair"); p.add_argument("device")
     p = sub.add_parser("send"); p.add_argument("device"); p.add_argument("file")
     p = sub.add_parser("clip"); p.add_argument("device", nargs="?")
-    p = sub.add_parser("send-notification"); p.add_argument("device")
-    p.add_argument("title"); p.add_argument("body", nargs="?", default="")
+    p = sub.add_parser("battery"); p.add_argument("device")
+    p = sub.add_parser("ring"); p.add_argument("device")
+    p = sub.add_parser("media"); p.add_argument("device")
+    p.add_argument("command", nargs="?",
+                   choices=["Play", "Pause", "PlayPause", "Stop", "Next", "Previous"],
+                   default="PlayPause")
+    p = sub.add_parser("sms"); p.add_argument("device"); p.add_argument("number")
+    p.add_argument("text", nargs="+")
+    p = sub.add_parser("mute"); p.add_argument("device")
+    p = sub.add_parser("mirror"); p.add_argument("device", nargs="?")
 
     args = ap.parse_args()
 
     if args.cmd == "daemon":
+        from phoney.dashboard import serve
         d = Daemon()
         d.start()
-        print("Phoney daemon running. Press Ctrl-C to stop.")
+        serve(d)
+        print("Phoney daemon running. Dashboard: http://127.0.0.1:3000/phoney")
+        print("Press Ctrl-C to stop.")
         try:
             import signal
             signal.pause()
@@ -46,7 +65,6 @@ def main() -> int:
     # only for a few seconds).
     d = Daemon()
     d.transport._broadcast_identity()
-    import time
     time.sleep(1.5)
 
     if args.cmd == "list":
@@ -57,7 +75,9 @@ def main() -> int:
             return 1
         for dev in devs:
             state = "paired" if dev.paired else "not paired"
-            print(f"{dev.name:30s} {dev.id}  ({state})")
+            bat = d.battery.get(dev.id)
+            extra = f"  battery {bat['level']}%" if bat else ""
+            print(f"{dev.name:30s} {dev.id}  ({state}){extra}")
         return 0
 
     try:
@@ -79,6 +99,32 @@ def main() -> int:
         if args.cmd == "clip":
             d.push_clipboard(args.device)
             print("Clipboard pushed.")
+            return 0
+        if args.cmd == "battery":
+            state = d.battery_of(args.device)
+            if state:
+                print(f"{state['level']}% {'(charging)' if state['charging'] else ''}")
+                return 0
+            print("No battery data yet — the phone reports it periodically; "
+                  "try again in a few seconds.")
+            return 2
+        if args.cmd == "ring":
+            d.ring(args.device)
+            print("Ring request sent.")
+            return 0
+        if args.cmd == "media":
+            d.media(args.device, args.command)
+            return 0
+        if args.cmd == "sms":
+            d.send_sms(args.device, args.number, " ".join(args.text))
+            print("SMS handed to the phone for sending.")
+            return 0
+        if args.cmd == "mute":
+            d.mute_call(args.device)
+            return 0
+        if args.cmd == "mirror":
+            result = d.screencast.start()
+            print(result)
             return 0
         if args.cmd == "send-notification":
             from phoney.packets import packet
